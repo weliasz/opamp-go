@@ -10,6 +10,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/open-telemetry/opamp-go/internal/examples/certs"
 	"github.com/open-telemetry/opamp-go/internal/examples/server/data"
@@ -138,6 +139,11 @@ func (srv *Server) onMessage(ctx context.Context, conn types.Connection, msg *pr
 	}
 
 	srv.logger.Debugf(ctx, "AgentToServer: InstanceUid=%x, %s", instanceId, formatAgentToServer(msg))
+	if fullMessage, err := (protojson.MarshalOptions{Multiline: true, EmitUnpopulated: true}).Marshal(msg); err != nil {
+		srv.logger.Errorf(ctx, "marshal full AgentToServer: %v", err)
+	} else {
+		srv.logger.Debugf(ctx, "Full AgentToServer:\n%s", fullMessage)
+	}
 
 	agent := srv.agents.FindOrCreateAgent(instanceId, conn)
 
