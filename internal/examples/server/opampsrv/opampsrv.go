@@ -144,6 +144,9 @@ func (srv *Server) onMessage(ctx context.Context, conn types.Connection, msg *pr
 	} else {
 		srv.logger.Debugf(ctx, "Full AgentToServer:\n%s", fullMessage)
 	}
+	srv.logger.Debugf(ctx, "AgentToServer capabilities decoded: %d (0x%x) = [%s]",
+		msg.Capabilities, msg.Capabilities,
+		formatBitmask(msg.Capabilities, protobufs.AgentCapabilities_name, "AgentCapabilities_"))
 
 	agent := srv.agents.FindOrCreateAgent(instanceId, conn)
 
