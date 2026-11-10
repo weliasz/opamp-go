@@ -172,6 +172,23 @@
 
 <hr/>
 
+<h3>Packages Available</h3>
+<p>
+    Send a ServerToAgent PackagesAvailable offer. Use ProtoJSON field names; byte fields such as
+    contentHash and allPackagesHash must be Base64 encoded. The package URL must be reachable by the agent.
+    The offer may download or install packages, or remove packages previously installed remotely if omitted.
+    <strong>{{if .AgentAcceptsPackages}}This agent advertises AcceptsPackages.{{else}}This agent does not advertise AcceptsPackages; it may ignore the offer.{{end}}</strong>
+</p>
+{{if .PackagesAvailableError}}
+<p style="color:red">{{.PackagesAvailableError}}</p>
+{{end}}
+<form action="/send_packages_available" method="post" onsubmit="return confirm('Send this package offer to the agent?')">
+    <input type="hidden" name="instanceid" value="{{ .InstanceIdStr }}"/>
+    <label for="packages_available">PackagesAvailable JSON:</label><br/>
+    <textarea id="packages_available" name="packages_available" rows="18" style="width:100%;box-sizing:border-box">{{.PackagesAvailableJSON}}</textarea><br/>
+    <input type="submit" value="Send PackagesAvailable" />
+</form>
+
 <h3>Custom Messages</h3>
 
 <h4>Send Custom Message</h4>

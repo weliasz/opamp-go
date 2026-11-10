@@ -41,6 +41,22 @@ func (agents *Agents) SendCustomMessageToAgent(
 	}
 }
 
+// SendPackagesAvailableToAgent offers the supplied package set to the Agent.
+func (agents *Agents) SendPackagesAvailableToAgent(
+	agentId InstanceId,
+	packages *protobufs.PackagesAvailable,
+) bool {
+	agent := agents.FindAgent(agentId)
+	if agent == nil {
+		logger.Printf("Agent %s not found\n", agentId)
+		return false
+	}
+
+	agent.SendPackagesAvailable(packages)
+	logger.Printf("PackagesAvailable offer sent to %s\n", agentId)
+	return true
+}
+
 func (agents *Agents) SetCustomConfigForAgent(
 	agentId InstanceId,
 	config *protobufs.AgentConfigMap,

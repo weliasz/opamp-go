@@ -262,6 +262,13 @@ func (agent *Agent) SendCustomMessage(customMsg *protobufs.ServerToAgent) {
 	agent.SendToAgent(customMsg)
 }
 
+func (agent *Agent) SendPackagesAvailable(packages *protobufs.PackagesAvailable) {
+	agent.mux.Lock()
+	defer agent.mux.Unlock()
+
+	agent.SendToAgent(&protobufs.ServerToAgent{PackagesAvailable: packages})
+}
+
 func notifyStatusWatchers(statusUpdateWatchers []chan<- struct{}) {
 	// Notify everyone who is waiting on this Agent's status updates.
 	for _, ch := range statusUpdateWatchers {

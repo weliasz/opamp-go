@@ -2,6 +2,8 @@ package uisrv
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"github.com/open-telemetry/opamp-go/internal/examples/html"
 	"github.com/open-telemetry/opamp-go/internal/examples/server/data"
 	"github.com/open-telemetry/opamp-go/protobufs"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
@@ -23,6 +26,28 @@ var (
 )
 
 var logger = log.New(log.Default().Writer(), "[UI] ", log.Default().Flags()|log.Lmsgprefix|log.Lmicroseconds)
+
+const examplePackagesAvailableJSON = `{
+  "packages": {
+    "example-package": {
+      "type": "PackageType_TopLevel",
+      "version": "1.0.0",
+      "file": {
+        "downloadUrl": "https://downloads.example.com/package.tar.gz",
+        "contentHash": ""
+      },
+      "hash": ""
+    }
+  },
+  "allPackagesHash": ""
+}`
+
+type agentPageData struct {
+	*data.Agent
+	PackagesAvailableJSON  string
+	PackagesAvailableError string
+	AgentAcceptsPackages   bool
+}
 
 func Start(rootDir string) {
 	htmlDir = path.Join(rootDir, "uisrv/html")
@@ -34,6 +59,7 @@ func Start(rootDir string) {
 	mux.HandleFunc("/rotate_client_cert", rotateInstanceClientCert)
 	mux.HandleFunc("/opamp_connection_settings", opampConnectionSettings)
 	mux.HandleFunc("/send_custom_message", sendCustomMessage)
+	mux.HandleFunc("/send_packages_available", sendPackagesAvailable)
 	srv = &http.Server{
 		Addr:    "0.0.0.0:4321",
 		Handler: mux,
@@ -80,7 +106,17 @@ func renderAgent(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	renderTemplate(w, "agent.html", agent)
+	renderAgentPage(w, agent, examplePackagesAvailableJSON, "")
+}
+
+func renderAgentPage(w http.ResponseWriter, agent *data.Agent, packagesJSON, packagesError string) {
+	renderTemplate(w, "agent.html", agentPageData{
+		Agent:                  agent,
+		PackagesAvailableJSON:  packagesJSON,
+		PackagesAvailableError: packagesError,
+		AgentAcceptsPackages: agent.Status != nil &&
+			agent.Status.Capabilities&uint64(protobufs.AgentCapabilities_AgentCapabilities_AcceptsPackages) != 0,
+	})
 }
 
 func sendCustomMessage(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +153,81 @@ func sendCustomMessage(w http.ResponseWriter, r *http.Request) {
 	data.AllAgents.SendCustomMessageToAgent(instanceId, customMsg)
 
 	http.Redirect(w, r, "/agent?instanceid="+uid.String(), http.StatusSeeOther)
+}
+
+func sendPackagesAvailable(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+
+	uid, err := uuid.Parse(r.Form.Get("instanceid"))
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	instanceId := data.InstanceId(uid)
+	agent := data.AllAgents.GetAgentReadonlyClone(instanceId)
+	if agent == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	packagesJSON := r.PostForm.Get("packages_available")
+	var packages protobufs.PackagesAvailable
+	if err := protojson.Unmarshal([]byte(packagesJSON), &packages); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		renderAgentPage(w, agent, packagesJSON, fmt.Sprintf("Invalid PackagesAvailable JSON: %v", err))
+		return
+	}
+	if err := validatePackagesAvailable(&packages); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		renderAgentPage(w, agent, packagesJSON, err.Error())
+		return
+	}
+
+	if !data.AllAgents.SendPackagesAvailableToAgent(instanceId, &packages) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	http.Redirect(w, r, "/agent?instanceid="+uid.String(), http.StatusSeeOther)
+}
+
+func validatePackagesAvailable(packages *protobufs.PackagesAvailable) error {
+	if len(packages.AllPackagesHash) == 0 {
+		return fmt.Errorf("allPackagesHash must contain the aggregate hash as Base64")
+	}
+	for name, pkg := range packages.Packages {
+		if name == "" || pkg == nil {
+			return fmt.Errorf("each package must have a non-empty map key and package definition")
+		}
+		if pkg.Version == "" {
+			return fmt.Errorf("package %q must have a version", name)
+		}
+		if pkg.Type != protobufs.PackageType_PackageType_TopLevel && pkg.Type != protobufs.PackageType_PackageType_Addon {
+			return fmt.Errorf("package %q must use PackageType_TopLevel or PackageType_Addon", name)
+		}
+		if pkg.File == nil {
+			return fmt.Errorf("package %q must define file", name)
+		}
+		fileURL, err := url.ParseRequestURI(pkg.File.DownloadUrl)
+		if err != nil || fileURL.Host == "" || (fileURL.Scheme != "http" && fileURL.Scheme != "https") {
+			return fmt.Errorf("package %q file.downloadUrl must be an absolute HTTP or HTTPS URL", name)
+		}
+		if len(pkg.File.ContentHash) != sha256.Size {
+			return fmt.Errorf("package %q file.contentHash must be a Base64-encoded SHA-256 hash (32 bytes)", name)
+		}
+		if len(pkg.Hash) == 0 {
+			return fmt.Errorf("package %q hash must be a non-empty Base64-encoded value", name)
+		}
+	}
+	return nil
 }
 
 func saveCustomConfigForInstance(w http.ResponseWriter, r *http.Request) {
