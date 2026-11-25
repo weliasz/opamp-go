@@ -6,6 +6,19 @@
     td {
         padding: 5px
     }
+    .agent-section {
+        border-bottom: 1px solid #ddd;
+        padding: 0.75rem 0;
+    }
+    .agent-section > summary {
+        cursor: pointer;
+    }
+    .agent-section > summary > h3 {
+        display: inline;
+    }
+    .agent-section[open] > summary {
+        margin-bottom: 0.75rem;
+    }
     .config-table {
         table-layout: fixed;
         width: 100%;
@@ -82,7 +95,8 @@
 
 <hr/>
 
-<h3>Configuration</h3>
+<details class="agent-section"{{if .Status.GetRemoteConfigStatus.GetErrorMessage}} open{{end}}>
+<summary><h3>Configuration</h3></summary>
 <table class="config-table">
     <tr>
         <td valign="top">
@@ -105,9 +119,10 @@
     </tr>
 </table>
 
-<hr/>
+</details>
 
-<h3>Client Certificate</h3>
+<details class="agent-section"{{if .ClientCertOfferError}} open{{end}}>
+<summary><h3>Client Certificate</h3></summary>
 
 <table border="1" style="border-collapse: collapse">
     {{if .ClientCert}}
@@ -146,7 +161,10 @@
     {{end}}
 </form>
 
-<h3>OpAMP Connection Settings</h3>
+</details>
+
+<details class="agent-section">
+<summary><h3>OpAMP Connection Settings</h3></summary>
 
 <br/>
 
@@ -167,9 +185,10 @@
     <input type="submit" value="Set connection settings"/>
 </form>
 
-<hr/>
+</details>
 
-<h3>Packages Available</h3>
+<details class="agent-section"{{if .PackagesAvailableError}} open{{end}}>
+<summary><h3>Packages Available</h3></summary>
 <p>
     Send a ServerToAgent PackagesAvailable offer. Use ProtoJSON field names; byte fields such as
     contentHash and allPackagesHash must be Base64 encoded. The package URL must be reachable by the agent.
@@ -294,7 +313,10 @@
 </form>
 {{end}}
 
-<h3>Package Statuses</h3>
+</details>
+
+<details class="agent-section">
+<summary><h3>Package Statuses</h3></summary>
 <p><a href="/agent?instanceid={{.InstanceIdStr}}">Refresh agent status</a></p>
 {{if .PackageStatusesJSON}}
 <pre class="log-container"><code>{{.PackageStatusesJSON}}</code></pre>
@@ -302,7 +324,10 @@
 <p>The agent has not reported package statuses yet.</p>
 {{end}}
 
-<h3>Custom Messages</h3>
+</details>
+
+<details class="agent-section">
+<summary><h3>Custom Messages</h3></summary>
 
 <h4>Send Custom Message</h4>
 <form action="/send_custom_message" method="post">
@@ -330,6 +355,8 @@ Last {{ len .CustomMessageHistory }} Received Messages
 {{ end }}
 </code></pre>
 {{ end }}
+
+</details>
 
 </body>
 </html>
