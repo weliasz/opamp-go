@@ -21,6 +21,7 @@ func main() {
 	var noTLS bool
 	flag.BoolVar(&noTLS, "no-tls", false, "Serve the OpAMP endpoint without TLS, accepting plaintext (ws://) connections. Useful when testing OpAMP clients that do not support TLS yet.")
 
+	packageManifest := flag.String("package-manifest", "", "JSON manifest of package files to offer from the agent page.")
 	flag.Parse()
 
 	curDir, err := os.Getwd()
@@ -30,7 +31,7 @@ func main() {
 
 	logger.Println("OpAMP Server starting...")
 
-	uisrv.Start(curDir)
+	uisrv.Start(curDir, *packageManifest)
 	opampSrv := opampsrv.NewServer(&data.AllAgents, emitMetrics)
 	opampSrv.Start(noTLS)
 

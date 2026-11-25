@@ -262,11 +262,11 @@ func (agent *Agent) SendCustomMessage(customMsg *protobufs.ServerToAgent) {
 	agent.SendToAgent(customMsg)
 }
 
-func (agent *Agent) SendPackagesAvailable(packages *protobufs.PackagesAvailable) {
+func (agent *Agent) SendPackagesAvailable(ctx context.Context, packages *protobufs.PackagesAvailable) error {
 	agent.mux.Lock()
 	defer agent.mux.Unlock()
 
-	agent.SendToAgent(&protobufs.ServerToAgent{PackagesAvailable: packages})
+	return agent.conn.Send(ctx, &protobufs.ServerToAgent{InstanceUid: agent.InstanceId[:], PackagesAvailable: packages})
 }
 
 func notifyStatusWatchers(statusUpdateWatchers []chan<- struct{}) {
@@ -346,6 +346,9 @@ func (agent *Agent) updateStatusField(newStatus *protobufs.AgentToServer) (agent
 	}
 
 	agentDescrChanged = agent.updateAgentDescription(newStatus) || agentDescrChanged
+	if newStatus.PackageStatuses != nil {
+		agent.Status.PackageStatuses = cloneProto[protobufs.PackageStatuses](newStatus.PackageStatuses)
+	}
 	agent.updateRemoteConfigStatus(newStatus)
 	agent.updateHealth(newStatus)
 

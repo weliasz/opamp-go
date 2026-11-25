@@ -21,15 +21,16 @@ import (
 )
 
 var (
-	htmlDir string
-	srv     *http.Server
+	htmlDir         string
+	packageManifest string
+	srv             *http.Server
 )
 
 var logger = log.New(log.Default().Writer(), "[UI] ", log.Default().Flags()|log.Lmsgprefix|log.Lmicroseconds)
 
 const examplePackagesAvailableJSON = `{
   "packages": {
-    "example-package": {
+    "": {
       "type": "PackageType_TopLevel",
       "version": "1.0.0",
       "file": {
@@ -47,9 +48,12 @@ type agentPageData struct {
 	PackagesAvailableJSON  string
 	PackagesAvailableError string
 	AgentAcceptsPackages   bool
+	DiskOffersEnabled      bool
+	PackageStatusesJSON    string
 }
 
-func Start(rootDir string) {
+func Start(rootDir, manifestPath string) {
+	packageManifest = manifestPath
 	htmlDir = path.Join(rootDir, "uisrv/html")
 
 	mux := http.NewServeMux()
@@ -110,8 +114,14 @@ func renderAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func renderAgentPage(w http.ResponseWriter, agent *data.Agent, packagesJSON, packagesError string) {
+	var statusJSON string
+	if status := agent.Status.GetPackageStatuses(); status != nil {
+		statusJSON = (protojson.MarshalOptions{Indent: "  ", EmitDefaultValues: true}).Format(status)
+	}
 	renderTemplate(w, "agent.html", agentPageData{
 		Agent:                  agent,
+		DiskOffersEnabled:      packageManifest != "",
+		PackageStatusesJSON:    statusJSON,
 		PackagesAvailableJSON:  packagesJSON,
 		PackagesAvailableError: packagesError,
 		AgentAcceptsPackages: agent.Status != nil &&
@@ -180,9 +190,16 @@ func sendPackagesAvailable(w http.ResponseWriter, r *http.Request) {
 
 	packagesJSON := r.PostForm.Get("packages_available")
 	var packages protobufs.PackagesAvailable
-	if err := protojson.Unmarshal([]byte(packagesJSON), &packages); err != nil {
+	var errOffer error
+	if r.PostForm.Get("source") == "disk" {
+		packagesJSON = examplePackagesAvailableJSON
+		errOffer = loadPackageManifest(packageManifest, &packages)
+	} else {
+		errOffer = protojson.Unmarshal([]byte(packagesJSON), &packages)
+	}
+	if errOffer != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		renderAgentPage(w, agent, packagesJSON, fmt.Sprintf("Invalid PackagesAvailable JSON: %v", err))
+		renderAgentPage(w, agent, packagesJSON, fmt.Sprintf("Could not load package offer: %v", errOffer))
 		return
 	}
 	if err := validatePackagesAvailable(&packages); err != nil {
@@ -191,8 +208,9 @@ func sendPackagesAvailable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !data.AllAgents.SendPackagesAvailableToAgent(instanceId, &packages) {
-		w.WriteHeader(http.StatusNotFound)
+	if err := data.AllAgents.SendPackagesAvailableToAgent(r.Context(), instanceId, &packages); err != nil {
+		w.WriteHeader(http.StatusConflict)
+		renderAgentPage(w, agent, packagesJSON, fmt.Sprintf("Could not send package offer: %v", err))
 		return
 	}
 
@@ -204,8 +222,11 @@ func validatePackagesAvailable(packages *protobufs.PackagesAvailable) error {
 		return fmt.Errorf("allPackagesHash must contain the aggregate hash as Base64")
 	}
 	for name, pkg := range packages.Packages {
-		if name == "" || pkg == nil {
-			return fmt.Errorf("each package must have a non-empty map key and package definition")
+		if pkg == nil {
+			return fmt.Errorf("package %q needs a definition", name)
+		}
+		if name == "" && pkg.Type != protobufs.PackageType_PackageType_TopLevel {
+			return fmt.Errorf("the empty package name is reserved for a top-level package")
 		}
 		if pkg.Version == "" {
 			return fmt.Errorf("package %q must have a version", name)

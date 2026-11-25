@@ -50,6 +50,8 @@ func TestOnMessageReportsServerCapabilities(t *testing.T) {
 	assert.Equal(t,
 		uint64(protobufs.ServerCapabilities_ServerCapabilities_AcceptsStatus|
 			protobufs.ServerCapabilities_ServerCapabilities_OffersRemoteConfig|
+			protobufs.ServerCapabilities_ServerCapabilities_OffersPackages|
+			protobufs.ServerCapabilities_ServerCapabilities_AcceptsPackagesStatus|
 			protobufs.ServerCapabilities_ServerCapabilities_AcceptsEffectiveConfig|
 			protobufs.ServerCapabilities_ServerCapabilities_OffersConnectionSettings|
 			protobufs.ServerCapabilities_ServerCapabilities_AcceptsConnectionSettingsRequest),

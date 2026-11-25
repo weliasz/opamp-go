@@ -42,16 +42,16 @@
                 <tr>
                     <td>Instance ID:</td><td>{{ .InstanceIdStr }}</td>
                 </tr>
-                {{if .Status.Health }}
+                {{if .Status.GetHealth }}
                 <tr>
-                    <td>Up:</td><td>{{ .Status.Health.Healthy }}</td>
+                    <td>Up:</td><td>{{ .Status.GetHealth.Healthy }}</td>
                 </tr>
-                {{if .Status.Health.LastError }}
+                {{if .Status.GetHealth.LastError }}
                 <tr>
-                    <td></td><td><span style="color:red">{{ .Status.Health.LastError }}</span></td>
+                    <td></td><td><span style="color:red">{{ .Status.GetHealth.LastError }}</span></td>
                 </tr>
                 {{end}}
-                {{if .Status.Health.Healthy }}
+                {{if .Status.GetHealth.Healthy }}
                 <tr>
                     <td>Up since:</td><td>{{ .StartedAt }}</td>
                 </tr>
@@ -65,12 +65,12 @@
         <td valign="top">
             <h3>Attributes</h3>
             <table border="1" style="border-collapse: collapse">
-                {{ range .Status.AgentDescription.IdentifyingAttributes }}
+                {{ range .Status.GetAgentDescription.GetIdentifyingAttributes }}
                 </tr>
                 <td>{{ .Key }}</td><td>{{ .Value }}</td>
                 </tr>
                 {{ end }}
-                {{ range .Status.AgentDescription.NonIdentifyingAttributes }}
+                {{ range .Status.GetAgentDescription.GetNonIdentifyingAttributes }}
                 </tr>
                 <td>{{ .Key }}</td><td>{{ .Value }}</td>
                 </tr>
@@ -94,9 +94,9 @@
             <form action="/save_config" method="post">
             <input type="hidden" name="instanceid" value="{{ .InstanceIdStr }}"/>
             <textarea rows="20" name="config">{{ .CustomInstanceConfig }}</textarea><br/>
-             {{if .Status.RemoteConfigStatus }}
-                {{if .Status.RemoteConfigStatus.ErrorMessage }}
-                <span style="color:red">Failed: {{ .Status.RemoteConfigStatus.ErrorMessage }}</span><br/>
+             {{if .Status.GetRemoteConfigStatus }}
+                {{if .Status.GetRemoteConfigStatus.ErrorMessage }}
+                <span style="color:red">Failed: {{ .Status.GetRemoteConfigStatus.ErrorMessage }}</span><br/>
                 {{end}}
              {{end}}
             <input type="submit" value="Save and Send to Agent"/>
@@ -167,9 +167,6 @@
     <input type="submit" value="Set connection settings"/>
 </form>
 
-</body>
-</html>
-
 <hr/>
 
 <h3>Packages Available</h3>
@@ -188,6 +185,22 @@
     <textarea id="packages_available" name="packages_available" rows="18" style="width:100%;box-sizing:border-box">{{.PackagesAvailableJSON}}</textarea><br/>
     <input type="submit" value="Send PackagesAvailable" />
 </form>
+
+{{if .DiskOffersEnabled}}
+<form action="/send_packages_available" method="post" onsubmit="return confirm('Send the package assignment from disk to this agent?')">
+    <input type="hidden" name="instanceid" value="{{.InstanceIdStr}}"/>
+    <input type="hidden" name="source" value="disk"/>
+    <button type="submit">Offer packages from disk</button>
+</form>
+{{end}}
+
+<h3>Package Statuses</h3>
+<p><a href="/agent?instanceid={{.InstanceIdStr}}">Refresh agent status</a></p>
+{{if .PackageStatusesJSON}}
+<pre class="log-container"><code>{{.PackageStatusesJSON}}</code></pre>
+{{else}}
+<p>The agent has not reported package statuses yet.</p>
+{{end}}
 
 <h3>Custom Messages</h3>
 
@@ -216,4 +229,7 @@ Last {{ len .CustomMessageHistory }} Received Messages
 <pre class="log-container"><code>{{ range .CustomMessageHistory }}{{ . }}
 {{ end }}
 </code></pre>
-{{ end }} 
+{{ end }}
+
+</body>
+</html>

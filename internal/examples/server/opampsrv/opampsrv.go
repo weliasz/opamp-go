@@ -113,6 +113,8 @@ func (srv *Server) onDisconnect(conn types.Connection) {
 // implements. It must be reported in the first ServerToAgent on a connection.
 const serverCapabilities = uint64(protobufs.ServerCapabilities_ServerCapabilities_AcceptsStatus |
 	protobufs.ServerCapabilities_ServerCapabilities_OffersRemoteConfig |
+	protobufs.ServerCapabilities_ServerCapabilities_OffersPackages |
+	protobufs.ServerCapabilities_ServerCapabilities_AcceptsPackagesStatus |
 	protobufs.ServerCapabilities_ServerCapabilities_AcceptsEffectiveConfig |
 	protobufs.ServerCapabilities_ServerCapabilities_OffersConnectionSettings |
 	protobufs.ServerCapabilities_ServerCapabilities_AcceptsConnectionSettingsRequest)

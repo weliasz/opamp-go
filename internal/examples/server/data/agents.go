@@ -1,7 +1,9 @@
 package data
 
 import (
+	"context"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"log"
 	"sync"
@@ -43,18 +45,20 @@ func (agents *Agents) SendCustomMessageToAgent(
 
 // SendPackagesAvailableToAgent offers the supplied package set to the Agent.
 func (agents *Agents) SendPackagesAvailableToAgent(
+	ctx context.Context,
 	agentId InstanceId,
 	packages *protobufs.PackagesAvailable,
-) bool {
+) error {
 	agent := agents.FindAgent(agentId)
 	if agent == nil {
-		logger.Printf("Agent %s not found\n", agentId)
-		return false
+		return fmt.Errorf("agent %x is disconnected", agentId)
 	}
 
-	agent.SendPackagesAvailable(packages)
-	logger.Printf("PackagesAvailable offer sent to %s\n", agentId)
-	return true
+	if err := agent.SendPackagesAvailable(ctx, packages); err != nil {
+		return err
+	}
+	logger.Printf("PackagesAvailable offer sent to %s\n", agent.InstanceIdStr)
+	return nil
 }
 
 func (agents *Agents) SetCustomConfigForAgent(
