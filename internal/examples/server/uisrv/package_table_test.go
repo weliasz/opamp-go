@@ -71,3 +71,29 @@ func TestPreparePackageOffer(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Len(t, urls, 4)
 }
+
+func TestHashPackageDownloadFollowsRedirect(t *testing.T) {
+	client := *packageDownloadClient
+	const start = "https://packages.example.com/latest"
+	const target = "https://cdn.example.org/package.tgz"
+	client.Transport = packageDownloadTransport(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case start:
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": {target}},
+				Body:       http.NoBody,
+			}, nil
+		case target:
+			require.Empty(t, r.Header.Get("Referer"))
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("artifact"))}, nil
+		default:
+			t.Fatalf("unexpected URL %s", r.URL)
+			return nil, nil
+		}
+	})
+	got, err := hashPackageDownload(t.Context(), &client, start)
+	require.NoError(t, err)
+	want := sha256.Sum256([]byte("artifact"))
+	require.Equal(t, want[:], got)
+}

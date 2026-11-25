@@ -20,8 +20,15 @@ const maxPackageDownloadBytes = 128 << 20
 
 var packageDownloadClient = &http.Client{
 	Timeout: 45 * time.Second,
-	CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("too many package download redirects")
+		}
+		if !validPackageDownloadURL(req.URL) {
+			return fmt.Errorf("invalid package download redirect")
+		}
+		req.Header.Del("Referer")
+		return nil
 	},
 }
 
@@ -85,8 +92,7 @@ func packageOfferFromRows(ctx context.Context, client *http.Client, rows []packa
 
 		downloadURL := strings.TrimSpace(row.DownloadURL)
 		u, err := url.Parse(downloadURL)
-		if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" ||
-			(u.Scheme != "http" && u.Scheme != "https") {
+		if err != nil || !validPackageDownloadURL(u) {
 			return nil, fmt.Errorf("row %d needs an absolute HTTP or HTTPS URL without credentials or a fragment", i+1)
 		}
 		contentHash, err := hashPackageDownload(ctx, client, u.String())
@@ -106,6 +112,11 @@ func packageOfferFromRows(ctx context.Context, client *http.Client, rows []packa
 	var err error
 	offer.AllPackagesHash, err = packageMessageHash(offer)
 	return offer, err
+}
+
+func validPackageDownloadURL(u *url.URL) bool {
+	return u.Hostname() != "" && u.User == nil && u.Fragment == "" &&
+		(u.Scheme == "http" || u.Scheme == "https")
 }
 
 func hashPackageDownload(ctx context.Context, client *http.Client, downloadURL string) ([]byte, error) {

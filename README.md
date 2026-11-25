@@ -108,8 +108,9 @@ Enter the name, version, and download URL for each package, then click
 **Done**. The server downloads the artifacts, calculates the content, package,
 and assignment hashes, and fills the **PackagesAvailable JSON** field.
 Review the complete assignment and click **Send PackagesAvailable** to send it.
-Use a direct HTTP or HTTPS artifact URL that both the OpAMP server and
-the agent can reach. Entries in one offer can use different hosts.
+Use an HTTP or HTTPS artifact URL that both the OpAMP server and the agent
+can reach. The server follows HTTP and HTTPS redirects when hashing. Entries
+in one offer can use different hosts.
 The example server fetches the supplied URLs, so expose its admin UI only
 to trusted users.
 
