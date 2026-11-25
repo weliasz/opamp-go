@@ -31,7 +31,7 @@ type packageRow struct {
 	DownloadURL string `json:"downloadUrl"`
 }
 
-func preparePackageOffer(origin string, client *http.Client) http.HandlerFunc {
+func preparePackageOffer(client *http.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if mediaType != "application/json" {
@@ -48,7 +48,7 @@ func preparePackageOffer(origin string, client *http.Client) http.HandlerFunc {
 
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		defer cancel()
-		offer, err := packageOfferFromRows(ctx, client, origin, rows)
+		offer, err := packageOfferFromRows(ctx, client, rows)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -63,7 +63,7 @@ func preparePackageOffer(origin string, client *http.Client) http.HandlerFunc {
 	}
 }
 
-func packageOfferFromRows(ctx context.Context, client *http.Client, origin string, rows []packageRow) (*protobufs.PackagesAvailable, error) {
+func packageOfferFromRows(ctx context.Context, client *http.Client, rows []packageRow) (*protobufs.PackagesAvailable, error) {
 	offer := &protobufs.PackagesAvailable{Packages: make(map[string]*protobufs.PackageAvailable, len(rows))}
 	for i, row := range rows {
 		name := strings.TrimSpace(row.Name)
@@ -85,9 +85,9 @@ func packageOfferFromRows(ctx context.Context, client *http.Client, origin strin
 
 		downloadURL := strings.TrimSpace(row.DownloadURL)
 		u, err := url.Parse(downloadURL)
-		if err != nil || u.Host == "" || u.User != nil || u.Fragment != "" ||
-			(u.Scheme != "http" && u.Scheme != "https") || u.Scheme+"://"+u.Host != origin {
-			return nil, fmt.Errorf("row %d needs an HTTP or HTTPS URL on the configured artifact origin %s", i+1, origin)
+		if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" ||
+			(u.Scheme != "http" && u.Scheme != "https") {
+			return nil, fmt.Errorf("row %d needs an absolute HTTP or HTTPS URL without credentials or a fragment", i+1)
 		}
 		contentHash, err := hashPackageDownload(ctx, client, u.String())
 		if err != nil {

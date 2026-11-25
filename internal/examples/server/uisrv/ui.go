@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,7 +52,7 @@ type agentPageData struct {
 	PackageStatusesJSON    string
 }
 
-func Start(rootDir, manifestPath, packageOrigin string) {
+func Start(rootDir, manifestPath string) {
 	packageManifest = manifestPath
 	htmlDir = path.Join(rootDir, "uisrv/html")
 
@@ -65,7 +64,7 @@ func Start(rootDir, manifestPath, packageOrigin string) {
 	mux.HandleFunc("/opamp_connection_settings", opampConnectionSettings)
 	mux.HandleFunc("/send_custom_message", sendCustomMessage)
 	mux.HandleFunc("/send_packages_available", sendPackagesAvailable)
-	mux.HandleFunc("POST /prepare_package_offer", preparePackageOffer(strings.TrimSuffix(packageOrigin, "/"), packageDownloadClient))
+	mux.HandleFunc("POST /prepare_package_offer", preparePackageOffer(packageDownloadClient))
 	srv = &http.Server{
 		Addr:    "0.0.0.0:4321",
 		Handler: mux,

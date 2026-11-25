@@ -108,10 +108,10 @@ Enter the name, version, and download URL for each package, then click
 **Done**. The server downloads the artifacts, calculates the content, package,
 and assignment hashes, and fills the **PackagesAvailable JSON** field.
 Review the complete assignment and click **Send PackagesAvailable** to send it.
-The table accepts URLs on `http://127.0.0.1:8000` by default. To use another
-artifact endpoint, start the server with `-package-download-origin` followed
-by its scheme, host, and port if needed. The URL must work from both the
-OpAMP server and the agent.
+Use a direct HTTP or HTTPS artifact URL that both the OpAMP server and
+the agent can reach. Entries in one offer can use different hosts.
+The example server fetches the supplied URLs, so expose its admin UI only
+to trusted users.
 
 For temporary HTTP hosting, serve only the intended artifact directory.
 Keep the manifest outside the served subtree if it contains private URLs

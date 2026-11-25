@@ -21,15 +21,13 @@ func (f packageDownloadTransport) RoundTrip(r *http.Request) (*http.Response, er
 }
 
 func TestPreparePackageOffer(t *testing.T) {
-	const origin = "http://127.0.0.1:8000"
+	var urls []string
 	contents := "test package"
-	var downloads int
 	client := &http.Client{Transport: packageDownloadTransport(func(r *http.Request) (*http.Response, error) {
-		downloads++
-		require.Equal(t, origin+"/smoke.txt", r.URL.String())
+		urls = append(urls, r.URL.String())
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(contents))}, nil
 	})}
-	handler := preparePackageOffer(origin, client)
+	handler := preparePackageOffer(client)
 	prepare := func(input string) *httptest.ResponseRecorder {
 		t.Helper()
 		w := httptest.NewRecorder()
@@ -59,7 +57,17 @@ func TestPreparePackageOffer(t *testing.T) {
 	require.NotEqual(t, pkg.GetHash(), updated.GetPackages()["file:smoke"].GetHash())
 	require.NotEqual(t, offer.GetAllPackagesHash(), updated.GetAllPackagesHash())
 
-	w = prepare(strings.Replace(rows, "127.0.0.1:8000", "127.0.0.1:8080", 1))
+	const mixedRows = `[
+		{"name":"file:smoke","version":"1","downloadUrl":"http://127.0.0.1:8000/smoke.txt"},
+		{"name":"file:other","version":"1","downloadUrl":"https://packages.example.com/other.tgz"}
+	]`
+	w = prepare(mixedRows)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.NoError(t, protojson.Unmarshal(w.Body.Bytes(), &updated))
+	require.Len(t, updated.GetPackages(), 2)
+	require.Equal(t, "https://packages.example.com/other.tgz", urls[3])
+
+	w = prepare(strings.Replace(rows, "http://127.0.0.1:8000/smoke.txt", "file:///tmp/smoke.txt", 1))
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Equal(t, 2, downloads)
+	require.Len(t, urls, 4)
 }
