@@ -103,6 +103,16 @@ example server's admin UI on port 4321, select the agent, and click **Offer
 packages from disk**. After the agent handles the offer, use **Refresh agent
 status** to view its latest **Package Statuses**.
 
+You can also prepare an offer on the agent page using the package table.
+Enter the name, version, and download URL for each package, then click
+**Done**. The server downloads the artifacts, calculates the content, package,
+and assignment hashes, and fills the **PackagesAvailable JSON** field.
+Review the complete assignment and click **Send PackagesAvailable** to send it.
+The table accepts URLs on `http://127.0.0.1:8000` by default. To use another
+artifact endpoint, start the server with `-package-download-origin` followed
+by its scheme, host, and port if needed. The URL must work from both the
+OpAMP server and the agent.
+
 For temporary HTTP hosting, serve only the intended artifact directory.
 Keep the manifest outside the served subtree if it contains private URLs
 or metadata. For example, place `smoke.txt` under `artifacts/` next to

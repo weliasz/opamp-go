@@ -179,12 +179,112 @@
 {{if .PackagesAvailableError}}
 <p style="color:red">{{.PackagesAvailableError}}</p>
 {{end}}
+<form id="package-table-form" data-agent="{{.InstanceIdStr}}">
+    <table>
+        <thead><tr><th scope="col">Name</th><th scope="col">Version</th><th scope="col">Download URL</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="package-table-rows"></tbody>
+    </table>
+    <p>Use a name such as <code>file:smoke</code> for an addon. Leave the name blank for the Collector binary.</p>
+    <button type="button" id="package-add-row">Add package</button>
+    <button type="submit" id="package-done">Done</button>
+    <p id="package-prepare-status" role="status"></p>
+</form>
+<template id="package-table-row">
+    <tr>
+        <td><input name="name" aria-label="Name" placeholder="file:smoke"></td>
+        <td><input name="version" aria-label="Version" required></td>
+        <td><input type="url" name="downloadUrl" aria-label="Download URL" size="45" required></td>
+        <td><button type="button">Remove</button></td>
+    </tr>
+</template>
 <form action="/send_packages_available" method="post" onsubmit="return confirm('Send this package offer to the agent?')">
     <input type="hidden" name="instanceid" value="{{ .InstanceIdStr }}"/>
     <label for="packages_available">PackagesAvailable JSON:</label><br/>
     <textarea id="packages_available" name="packages_available" rows="18" style="width:100%;box-sizing:border-box">{{.PackagesAvailableJSON}}</textarea><br/>
     <input type="submit" value="Send PackagesAvailable" />
 </form>
+
+<script>
+(() => {
+    const form = document.getElementById("package-table-form");
+    const rows = document.getElementById("package-table-rows");
+    const rowTemplate = document.getElementById("package-table-row");
+    const status = document.getElementById("package-prepare-status");
+    const done = document.getElementById("package-done");
+    const offer = document.getElementById("packages_available");
+    const draftKey = "opamp-package-rows:" + form.dataset.agent;
+
+    function readRows() {
+        return Array.from(rows.rows, row => Object.fromEntries(
+            Array.from(row.querySelectorAll("input"), input => [input.name, input.value.trim()])
+        ));
+    }
+
+    function saveDraft() {
+        try {
+            sessionStorage.setItem(draftKey, JSON.stringify(readRows()));
+        } catch {
+            // The editor also works when storage is unavailable.
+        }
+    }
+
+    function addRow(values = {}) {
+        const row = rowTemplate.content.firstElementChild.cloneNode(true);
+        for (const input of row.querySelectorAll("input")) {
+            input.value = values[input.name] || "";
+        }
+        row.querySelector("button").addEventListener("click", () => {
+            row.remove();
+            saveDraft();
+        });
+        rows.append(row);
+        return row;
+    }
+
+    let draft;
+    try {
+        draft = JSON.parse(sessionStorage.getItem(draftKey));
+    } catch {
+        // Start with a blank row if the draft could not be read.
+    }
+    for (const row of Array.isArray(draft) ? draft : [{}]) {
+        addRow(row);
+    }
+    form.addEventListener("input", saveDraft);
+    document.getElementById("package-add-row").addEventListener("click", () => {
+        addRow().querySelector("input").focus();
+        saveDraft();
+    });
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const current = readRows();
+        done.disabled = true;
+        status.textContent = "Calculating package hashes…";
+        try {
+            const response = await fetch("/prepare_package_offer", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(current)
+            });
+            if (!response.ok) {
+                throw new Error((await response.text()).trim());
+            }
+            const prepared = await response.text();
+            if (JSON.stringify(readRows()) !== JSON.stringify(current)) {
+                status.textContent = "The table changed. Click Done again to update the offer.";
+                return;
+            }
+            offer.value = prepared;
+            status.textContent = "Hashes calculated. Review the offer below, then send it to the agent.";
+        } catch (error) {
+            status.textContent = error.message;
+        } finally {
+            done.disabled = false;
+        }
+    });
+})();
+</script>
 
 {{if .DiskOffersEnabled}}
 <form action="/send_packages_available" method="post" onsubmit="return confirm('Send the package assignment from disk to this agent?')">
