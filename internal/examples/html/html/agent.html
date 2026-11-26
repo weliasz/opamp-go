@@ -202,10 +202,10 @@
     <table>
         <thead><tr><th scope="col">Name</th><th scope="col">Version</th><th scope="col">Download URL</th><th scope="col">Actions</th></tr></thead>
         <tbody id="package-table-rows"></tbody>
+        <tfoot><tr><td colspan="3"></td><td><button type="button" id="package-add-row">Add package</button></td></tr></tfoot>
     </table>
     <p>Use a name such as <code>file:smoke</code> for an addon. Leave the name blank for the Collector binary.</p>
-    <button type="button" id="package-add-row">Add package</button>
-    <button type="submit" id="package-done">Done</button>
+    <button type="submit" id="package-done">Generate Packages Message</button>
     <p id="package-prepare-status" role="status"></p>
 </form>
 <template id="package-table-row">
@@ -291,7 +291,7 @@
             }
             const prepared = await response.text();
             if (JSON.stringify(readRows()) !== JSON.stringify(current)) {
-                status.textContent = "The table changed. Click Done again to update the offer.";
+                status.textContent = "The table changed. Click Generate Packages Message again to update the offer.";
                 return;
             }
             offer.value = prepared;
