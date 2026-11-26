@@ -105,11 +105,15 @@ status** to view its latest **Package Statuses**.
 
 You can also prepare an offer on the agent page using the package table.
 Enter the name, version, and download URL for each package, then click
-**Done**. The server downloads the artifacts, calculates the content, package,
-and assignment hashes, and fills the **PackagesAvailable JSON** field.
+**Done**. The server checks the artifact URL's directory for
+`<filename>.sha256`, `<filename>.sha256sum`, `SHA256SUMS`, or `checksums.txt`.
+When it finds a valid SHA-256 checksum for the artifact, it uses that digest.
+Otherwise it downloads and hashes the artifact. It then calculates the package
+and assignment hashes and fills the **PackagesAvailable JSON** field.
 Review the complete assignment and click **Send PackagesAvailable** to send it.
 Use an HTTP or HTTPS artifact URL that both the OpAMP server and the agent
-can reach. The server follows HTTP and HTTPS redirects when hashing. Entries
+can reach. Checksum requests omit query parameters from the artifact URL.
+The server follows HTTP and HTTPS redirects when hashing. Entries
 in one offer can use different hosts.
 The example server fetches the supplied URLs, so expose its admin UI only
 to trusted users.

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -24,7 +25,12 @@ func TestPreparePackageOffer(t *testing.T) {
 	var urls []string
 	contents := "test package"
 	client := &http.Client{Transport: packageDownloadTransport(func(r *http.Request) (*http.Response, error) {
-		urls = append(urls, r.URL.String())
+		switch r.URL.Path {
+		case "/smoke.txt", "/other.tgz":
+			urls = append(urls, r.URL.String())
+		default:
+			return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+		}
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(contents))}, nil
 	})}
 	handler := preparePackageOffer(client)
@@ -96,4 +102,38 @@ func TestHashPackageDownloadFollowsRedirect(t *testing.T) {
 	require.NoError(t, err)
 	want := sha256.Sum256([]byte("artifact"))
 	require.Equal(t, want[:], got)
+}
+
+func TestPackageContentHashUsesChecksumWithoutDownloadingArtifact(t *testing.T) {
+	const artifactURL = "https://packages.example.com/releases/smoke%20test.tgz?token=artifact-only"
+	const checksum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tt := range []struct {
+		name string
+		path string
+		body string
+		hits int
+	}{
+		{"bare sidecar", "/releases/smoke test.tgz.sha256", checksum + "\n", 1},
+		{"named sidecar", "/releases/smoke test.tgz.sha256sum", checksum + " *smoke test.tgz\n", 2},
+		{"aggregate", "/releases/SHA256SUMS", checksum + "  other.tgz\nSHA256 (smoke test.tgz) = " + checksum + "\n", 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			requests := 0
+			client := &http.Client{Transport: packageDownloadTransport(func(r *http.Request) (*http.Response, error) {
+				requests++
+				require.Empty(t, r.URL.RawQuery)
+				require.NotEqual(t, "/releases/smoke test.tgz", r.URL.Path)
+				if r.URL.Path != tt.path {
+					return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(tt.body))}, nil
+			})}
+			artifact, err := url.Parse(artifactURL)
+			require.NoError(t, err)
+			got, err := packageContentHash(t.Context(), client, artifact)
+			require.NoError(t, err)
+			require.Equal(t, decodeSHA256(checksum), got)
+			require.Equal(t, tt.hits, requests)
+		})
+	}
 }

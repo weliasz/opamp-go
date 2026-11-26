@@ -95,7 +95,7 @@ func packageOfferFromRows(ctx context.Context, client *http.Client, rows []packa
 		if err != nil || !validPackageDownloadURL(u) {
 			return nil, fmt.Errorf("row %d needs an absolute HTTP or HTTPS URL without credentials or a fragment", i+1)
 		}
-		contentHash, err := hashPackageDownload(ctx, client, u.String())
+		contentHash, err := packageContentHash(ctx, client, u)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: %w", i+1, err)
 		}
