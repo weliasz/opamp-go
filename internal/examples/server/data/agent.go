@@ -63,6 +63,7 @@ type Agent struct {
 
 	// Remote config that we will give to this Agent.
 	remoteConfig *protobufs.AgentRemoteConfig
+	customConfig *protobufs.AgentConfigMap
 
 	// Channels to notify when this Agent's status is updated next time.
 	statusUpdateWatchers []chan<- struct{}
@@ -454,7 +455,8 @@ func (agent *Agent) SetCustomConfig(
 ) {
 	agent.mux.Lock()
 
-	agent.CustomInstanceConfig = string(config.ConfigMap[""].Body)
+	agent.customConfig = proto.Clone(config).(*protobufs.AgentConfigMap)
+	agent.CustomInstanceConfig = string(config.GetConfigMap()[""].GetBody())
 
 	configChanged := agent.calcRemoteConfig()
 	if configChanged {
@@ -489,28 +491,23 @@ func (agent *Agent) SetCustomConfig(
 // the calculated new config is different from the existing config stored in
 // Agent.remoteConfig.
 func (agent *Agent) calcRemoteConfig() bool {
-	hash := sha256.New()
-
 	cfg := protobufs.AgentRemoteConfig{
 		Config: &protobufs.AgentConfigMap{
 			ConfigMap: map[string]*protobufs.AgentConfigObject{},
 		},
 	}
 
-	// Add the custom config for this particular Agent instance. Use empty
-	// string as the config file name.
-	cfg.Config.ConfigMap[""] = &protobufs.AgentConfigObject{
-		Body: []byte(agent.CustomInstanceConfig),
+	if agent.customConfig != nil {
+		cfg.Config = proto.Clone(agent.customConfig).(*protobufs.AgentConfigMap)
+	} else {
+		cfg.Config.ConfigMap[""] = &protobufs.AgentConfigObject{Body: []byte(agent.CustomInstanceConfig)}
 	}
-
-	// Calculate the hash.
-	for k, v := range cfg.Config.ConfigMap {
-		hash.Write([]byte(k))
-		hash.Write(v.Body)
-		hash.Write([]byte(v.ContentType))
+	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(cfg.Config)
+	if err != nil {
+		return false
 	}
-
-	cfg.ConfigHash = hash.Sum(nil)
+	sum := sha256.Sum256(encoded)
+	cfg.ConfigHash = sum[:]
 
 	configChanged := !isEqualRemoteConfig(agent.remoteConfig, &cfg)
 
@@ -558,7 +555,7 @@ func isEqualConfigFile(f1, f2 *protobufs.AgentConfigObject) bool {
 	if f1 == nil || f2 == nil {
 		return false
 	}
-	return bytes.Compare(f1.Body, f2.Body) == 0 && f1.ContentType == f2.ContentType
+	return bytes.Equal(f1.Body, f2.Body) && f1.ContentType == f2.ContentType && f1.Role == f2.Role
 }
 
 func (agent *Agent) calcConnectionSettings(response *protobufs.ServerToAgent) {

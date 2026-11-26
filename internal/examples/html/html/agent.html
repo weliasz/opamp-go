@@ -119,6 +119,60 @@
     </tr>
 </table>
 
+<h4>AgentRemoteConfig from server files</h4>
+<p>Files must be under <code>/home/splunker/configs</code>. The empty name is the instance configuration; addon configuration uses its package name and role <code>addon-config</code>. Generating does not send the message. The complete map is sent when you choose Send.</p>
+<form id="remote-config-table">
+    <table>
+        <thead><tr><th>Name</th><th>Server file path</th><th>Content type</th><th>Role</th><th>Actions</th></tr></thead>
+        <tbody id="remote-config-rows"></tbody>
+        <tfoot><tr><td colspan="4"></td><td><button type="button" id="remote-config-add">Add configuration</button></td></tr></tfoot>
+    </table>
+    <button type="submit">Generate Configuration Message</button>
+    <p id="remote-config-status" role="status"></p>
+</form>
+<template id="remote-config-row"><tr>
+    <td><input name="name" aria-label="Configuration name" placeholder="empty for instance"></td>
+    <td><input name="path" aria-label="Server file path" required placeholder="/home/splunker/configs/collector.yaml"></td>
+    <td><input name="contentType" aria-label="Content type" placeholder="text/yaml"></td>
+    <td><input name="role" aria-label="Role" placeholder="addon-config"></td>
+    <td><button type="button">Remove</button></td>
+</tr></template>
+<form action="/save_config" method="post" onsubmit="return confirm('Send this complete configuration map to the agent?')">
+    <input type="hidden" name="instanceid" value="{{.InstanceIdStr}}">
+    <label for="remote-config-json">AgentRemoteConfig JSON:</label><br>
+    <textarea id="remote-config-json" name="remote_config_json" rows="12" style="width:100%;box-sizing:border-box" required></textarea><br>
+    <button type="submit">Send Configuration Message</button>
+</form>
+<script>
+(() => {
+    const form = document.getElementById("remote-config-table");
+    const rows = document.getElementById("remote-config-rows");
+    const status = document.getElementById("remote-config-status");
+    const output = document.getElementById("remote-config-json");
+    const readRows = () => Array.from(rows.rows, row => Object.fromEntries(Array.from(row.querySelectorAll("input"), input => [input.name, input.value])));
+    function addRow() {
+        const row = document.getElementById("remote-config-row").content.firstElementChild.cloneNode(true);
+        row.querySelector("button").addEventListener("click", () => row.remove());
+        rows.append(row);
+    }
+    document.getElementById("remote-config-add").addEventListener("click", addRow);
+    addRow();
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const current = readRows();
+        status.textContent = "Reading configuration files…";
+        try {
+            const response = await fetch("/prepare_remote_config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(current)});
+            if (!response.ok) throw new Error((await response.text()).trim());
+            const message = await response.text();
+            if (JSON.stringify(current) !== JSON.stringify(readRows())) throw new Error("The table changed. Generate the message again.");
+            output.value = message;
+            status.textContent = "Message generated. Review it before sending.";
+        } catch (error) { status.textContent = error.message; }
+    });
+})();
+</script>
+
 </details>
 
 <details class="agent-section"{{if .ClientCertOfferError}} open{{end}}>

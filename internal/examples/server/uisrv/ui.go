@@ -60,6 +60,7 @@ func Start(rootDir, manifestPath string) {
 	mux.HandleFunc("/", renderRoot)
 	mux.HandleFunc("/agent", renderAgent)
 	mux.HandleFunc("/save_config", saveCustomConfigForInstance)
+	mux.HandleFunc("POST /prepare_remote_config", prepareRemoteConfig)
 	mux.HandleFunc("/rotate_client_cert", rotateInstanceClientCert)
 	mux.HandleFunc("/opamp_connection_settings", opampConnectionSettings)
 	mux.HandleFunc("/send_custom_message", sendCustomMessage)
@@ -277,6 +278,14 @@ func saveCustomConfigForInstance(w http.ResponseWriter, r *http.Request) {
 			"": {Body: []byte(configStr)},
 		},
 	}
+	if raw := r.PostForm.Get("remote_config_json"); raw != "" {
+		var remote protobufs.AgentRemoteConfig
+		if err := protojson.Unmarshal([]byte(raw), &remote); err != nil || remote.Config == nil {
+			http.Error(w, "Invalid AgentRemoteConfig JSON", http.StatusBadRequest)
+			return
+		}
+		config = remote.Config
+	}
 
 	notifyNextStatusUpdate := make(chan struct{}, 1)
 	data.AllAgents.SetCustomConfigForAgent(instanceId, config, notifyNextStatusUpdate)
@@ -284,6 +293,7 @@ func saveCustomConfigForInstance(w http.ResponseWriter, r *http.Request) {
 	// Wait for up to 5 seconds for a Status update, which is expected
 	// to be reported by the Agent after we set the remote config.
 	timer := time.NewTicker(time.Second * 5)
+	defer timer.Stop()
 
 	select {
 	case <-notifyNextStatusUpdate:
